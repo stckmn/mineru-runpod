@@ -1,0 +1,42 @@
+# Defines the `mineru_client` Python package that callers `pip install -e` to
+# talk to a deployed runpod-mineru endpoint. Consumers don't need MinerU or
+# CUDA — just the runpod SDK.
+
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mineru-client"
+version = "0.1.0"
+description = "Python client for the runpod-mineru serverless service"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "runpod>=1.7",
+]
+
+[project.optional-dependencies]
+deploy = [
+    # Used by deploy.py / destroy.py on the operator's machine.
+    "python-dotenv>=1.0",
+]
+test = [
+    # CI runs these without a GPU. Worker-side deps that the handler imports
+    # at module load (httpx, runpod) are needed; mineru itself is NOT — its
+    # import is wrapped in try/except inside handler.py.
+    "pytest>=7",
+    "httpx>=0.27",
+    "runpod>=1.7",
+    "python-dotenv>=1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["mineru_client"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "mineru_client/**",
+    "README.md",
+    "pyproject.toml",
+]

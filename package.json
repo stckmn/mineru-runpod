@@ -1,0 +1,26 @@
+{
+  "name": "runpod-mineru",
+  "version": "0.0.0-semantic-release",
+  "private": true,
+  "description": "Dev tooling for runpod-mineru: conventional-commit linting and automated changelog + version management via semantic-release. The actual project is Python.",
+  "scripts": {
+    "commitlint": "commitlint --edit",
+    "release": "semantic-release"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.0",
+    "@semantic-release/exec": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.0",
+    "@semantic-release/release-notes-generator": "^14.0.1",
+    "conventional-changelog-conventionalcommits": "^8.0.0",
+    "husky": "^9.1.6",
+    "semantic-release": "^24.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

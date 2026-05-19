@@ -1,0 +1,37 @@
+# Keep the build context small. Only the files the Docker image needs.
+.git
+.gitignore
+.env
+.env.example
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+out/
+examples/
+mineru_client/
+tests/
+deploy.py
+destroy.py
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+SECURITY.md
+LICENSE
+pyproject.toml
+package.json
+package-lock.json
+node_modules/
+.dockerignore
+.releaserc.json
+commitlint.config.js
+.github/
+
+# DO keep .runpod/test-fixture.pdf — it's referenced by the Hub tests.
+# (Everything else in .runpod/ is config that doesn't need to be in the image.)
+.runpod/hub.json
+.runpod/tests.json
+.runpod/README.md

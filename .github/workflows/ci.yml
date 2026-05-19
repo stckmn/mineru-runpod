@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Smoke import the client
+        run: python -c "from mineru_client import MineruClient, MineruClientError; print('client imports OK')"
+
+      - name: Smoke import the handler (mineru import is optional)
+        run: python -c "import handler; print('handler imports OK; mineru_version=', handler.MINERU_VERSION)"
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  lint-dockerfile:
+    name: Hadolint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          # base image's vllm version is pinned by build arg — hadolint can't
+          # tell, so silence DL3007 (use tag instead of latest) for the FROM line.
+          ignore: DL3007,DL3008
