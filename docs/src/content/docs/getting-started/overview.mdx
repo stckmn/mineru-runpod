@@ -10,7 +10,7 @@ description: Architecture, what's in the repo, supported workloads, and how it c
 - **`handler.py`** — the serverless worker. Accepts a PDF via URL, base64, or mounted-volume path; calls MinerU's async parse; returns Markdown + `content_list` + `middle.json` + images.
 - **`mineru_client/`** — the Python package consumers import. One class (`MineruClient`), two methods (`parse_pdf`, `parse_pdf_from_file`). Pure-Python; imports nothing GPU- or MinerU-related, so it's safe to depend on from any caller.
 - **`deploy.py` / `destroy.py`** — stand up and tear down the RunPod endpoint from CLI flags. Every dashboard setting is exposed as a flag.
-- **`.runpod/hub.json`** — RunPod Hub listing metadata with three preset configurations (spiky workload, steady throughput, long single jobs).
+- **`.runpod/hub.json`** — RunPod Hub listing metadata (title, description, GPU pool list, CUDA versions).
 - **`examples/`** — `parse_url_example.py`, `parse_b64_example.py`, and a `parser_adapter_example.py` showing how to wrap MinerU output in your own typed domain model.
 
 ## Who it's for
@@ -45,11 +45,10 @@ See the [project README](https://github.com/sergeyshmakov/runpod-mineru#how-does
 
 ## Next steps
 
-The full deploy walkthrough still lives in the [project README](https://github.com/sergeyshmakov/runpod-mineru#deploy) for now — a dedicated **Deploy** page is coming in the next docs pass. In the meantime:
+There are two paths from here, depending on whether you want to run the official image as-is or run your own customised build:
 
-1. **Sign up for RunPod** via [this referral link](https://runpod.io?ref=31jdfpnq) and add $5 of credit.
-2. **Fork the repo** and let RunPod auto-build the image from your `Dockerfile`.
-3. **Create an endpoint** from the template; grab the endpoint id.
-4. **`pip install`** the client, point it at your endpoint id, and parse your first PDF.
+**Easiest — deploy from the RunPod Hub.** Sign up via [this referral link](https://runpod.io?ref=31jdfpnq), open **The Hub → Serverless repos**, find `runpod-mineru`, click Deploy. Grab the endpoint id and you're parsing PDFs.
 
-Total wall time: ~10 minutes if RunPod has spare capacity.
+**Customise — fork and auto-build.** Fork [the repo](https://github.com/sergeyshmakov/runpod-mineru), then in the RunPod dashboard do **The Hub → Serverless repos → Import Git Repository** pointed at your fork. RunPod builds the image on every push to `main`. Use this path if you need to pin different MinerU / vLLM versions or modify `handler.py`.
+
+Either way, total wall time is roughly 10 minutes assuming RunPod has spare capacity. See the [project README's Deploy section](https://github.com/sergeyshmakov/runpod-mineru#deploy) for the full step-by-step.

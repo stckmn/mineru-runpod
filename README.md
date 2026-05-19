@@ -27,7 +27,7 @@ client.save_tarball(result, "./out/doc")
 
 - **MinerU 2.5** is SOTA for PDF → structured Markdown/JSON (charts, tables, math, multi-language). Apache 2.0 licensed. See the [paper](https://arxiv.org/abs/2604.04771), [repo](https://github.com/opendatalab/MinerU), and [model card on HuggingFace](https://huggingface.co/opendatalab/MinerU2.5-Pro-2604-1.2B).
 - **RunPod Serverless** bills per-second and **scales to zero**. With `idle_timeout=10` and FlashBoot, a 100-page document costs roughly **$0.01** instead of paying for an always-on GPU.
-- **You don't have to wire any of that together yourself.** Push this repo to GitHub → RunPod auto-builds → endpoint id in your `.env` → done.
+- **You don't have to wire any of that together yourself.** Deploy from the [RunPod Hub](https://runpod.io?ref=31jdfpnq) in one click, or fork this repo and let RunPod auto-build from your copy. Either way you end up with an endpoint id you paste into your `.env`.
 
 ## Use cases this is built for
 
@@ -94,14 +94,27 @@ Full contract lives in [handler.py](handler.py) — keep that file as the source
 
 ## Deploy
 
-### Option A — RunPod GitHub auto-build (recommended for long-term use)
+### Option A — Deploy from the RunPod Hub (easiest)
 
-1. Push this repo to a GitHub repository (public or private).
-2. In the RunPod dashboard: **Serverless → Templates → New → Import Git Repository**, pick this repo and `Dockerfile` as the path.
-3. RunPod builds the image (~5–10 min, watchable in the dashboard) and gives you a `template_id`.
-4. Create the endpoint. Pick one:
-   - **(A1) Dashboard, no local Python needed**: **Serverless → Endpoints → New** → select the template, set `idle_timeout=10`, `workers_min=0`, `workers_max=3`, FlashBoot on, GPU pool `AMPERE_24`. Save → grab the endpoint id.
-   - **(A2) As code, reproducible across deployments**:
+This repo is published as a public Hub template. In the RunPod dashboard go to **The Hub → Serverless repos**, find `runpod-mineru`, click Deploy. RunPod builds the image on your account, you pick a GPU pool, and you get an endpoint id — no fork, no clone, no local setup.
+
+This is the recommended path if you just want to parse PDFs.
+
+### Option B — Fork and auto-build (for customization)
+
+Fork this repo into your own GitHub account if you want to:
+
+- Pin different versions of MinerU, vLLM, or other dependencies
+- Modify `handler.py` (custom input validation, extra output formats, etc.)
+- Run on a private GitHub repo
+
+Then in the RunPod dashboard:
+
+1. **The Hub → Serverless repos → Import Git Repository**, point at your fork. Branch `main`, Dockerfile path `Dockerfile`.
+2. RunPod builds the image (~5–10 min, watchable in the dashboard) and gives you a `template_id`.
+3. Create the endpoint. Pick one:
+   - **(B1) Dashboard, no local Python needed**: **Resources → Serverless → New Endpoint** → select your template, set `idle_timeout=10`, `workers_min=0`, `workers_max=3`, FlashBoot on, GPU pool `AMPERE_24`. Save → grab the endpoint id.
+   - **(B2) As code, reproducible across deployments**:
      ```powershell
      cp .env.example .env       # fill RUNPOD_API_KEY and MINERU_TEMPLATE_ID
      pip install -e .[deploy]
@@ -109,11 +122,11 @@ Full contract lives in [handler.py](handler.py) — keep that file as the source
      ```
      Every knob in `deploy.py --help` matches a setting in the dashboard.
 
-Subsequent pushes to `main` rebuild the image automatically; the endpoint picks up the new image on next cold start (or you can force a redeploy from the dashboard).
+Subsequent pushes to `main` on your fork rebuild the image automatically; the endpoint picks up the new image on next cold start (or you can force a redeploy from the dashboard).
 
-### Option B — bring your own image
+### Option C — Bring your own image
 
-Build and push to Docker Hub / GHCR yourself, then:
+For full control over the Docker layer, build and push to Docker Hub / GHCR yourself, then:
 
 ```powershell
 python deploy.py --image yourhandle/runpod-mineru:0.1
@@ -139,19 +152,15 @@ Override any of these via flags to `deploy.py` (e.g. `--gpu-ids ADA_24 --workers
 Pick the flavour that matches your project's tooling:
 
 ```powershell
-# pip (single project)
-pip install -e C:\Projects\runpod-mineru
-
-# uv (workspaces, recommended for monorepos)
-uv add "mineru-client @ file:///C:/Projects/runpod-mineru"
-
-# Once you've pushed this repo to GitHub:
-uv add "mineru-client @ git+https://github.com/<owner>/runpod-mineru@v0.1.0"
-pip install "mineru-client @ git+https://github.com/<owner>/runpod-mineru@v0.1.0"
-
-# Or, if/when published to PyPI:
+# pip from PyPI
 pip install mineru-client
+
+# uv from PyPI (workspaces, recommended for monorepos)
 uv add mineru-client
+
+# Direct from GitHub (e.g. to pin a specific tag pre-PyPI-publish)
+pip install "mineru-client @ git+https://github.com/sergeyshmakov/runpod-mineru@v0.1.0"
+uv add "mineru-client @ git+https://github.com/sergeyshmakov/runpod-mineru@v0.1.0"
 ```
 
 Pin to a tag (`@v0.1.0`) rather than `main` once you depend on it in production — semantic-release publishes one tag per release, so version drift is explicit.
@@ -236,15 +245,6 @@ The MinerU container itself rebuilds with `docker build -t runpod-mineru:dev .` 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Commits must follow [Conventional Commits](https://www.conventionalcommits.org/) — commitlint enforces this in CI and `CHANGELOG.md` is generated automatically by semantic-release on push to `main`.
-
-## Discoverability — GitHub topics to add
-
-After pushing the repo, add these topics in **Settings → General → Topics** so it shows up in the right GitHub search pages:
-
-```
-mineru  pdf-parsing  runpod  serverless  document-ai  pdf-to-markdown
-vllm  rag  ocr  vlm  pdf-extraction  office-documents
-```
 
 ## Support this project
 
