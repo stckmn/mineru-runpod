@@ -149,21 +149,17 @@ Override any of these via flags to `deploy.py` (e.g. `--gpu-ids ADA_24 --workers
 
 ### Install the client
 
-Pick the flavour that matches your project's tooling:
+The Python client lives inside this repo and is installed directly from GitHub. There's no PyPI package; the client lib rides along with worker releases, so the tag you pin pairs the client with the matching worker version.
 
 ```powershell
-# pip from PyPI
-pip install mineru-client
+# pip
+pip install "mineru-client @ git+https://github.com/sergeyshmakov/runpod-mineru@v1.1.0"
 
-# uv from PyPI (workspaces, recommended for monorepos)
-uv add mineru-client
-
-# Direct from GitHub (e.g. to pin a specific tag pre-PyPI-publish)
-pip install "mineru-client @ git+https://github.com/sergeyshmakov/runpod-mineru@v0.1.0"
-uv add "mineru-client @ git+https://github.com/sergeyshmakov/runpod-mineru@v0.1.0"
+# uv (recommended for workspaces / monorepos)
+uv add "mineru-client @ git+https://github.com/sergeyshmakov/runpod-mineru@v1.1.0"
 ```
 
-Pin to a tag (`@v0.1.0`) rather than `main` once you depend on it in production — semantic-release publishes one tag per release, so version drift is explicit.
+Pin to a release tag rather than `main` once you depend on it in production; semantic-release cuts one tag per release, so version drift is explicit. Latest releases are listed at [github.com/sergeyshmakov/runpod-mineru/releases](https://github.com/sergeyshmakov/runpod-mineru/releases).
 
 ### Direct use
 
