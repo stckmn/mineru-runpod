@@ -1,3 +1,9 @@
+## [1.1.23](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.1.22...v1.1.23) (2026-05-24)
+
+### Bug Fixes
+
+* remove runpod-disabled folder ([091fd56](https://github.com/sergeyshmakov/mineru-runpod/commit/091fd56ca4516750cdc23e5694b3bc9e466acc4e))
+
 ## [1.1.22](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.1.21...v1.1.22) (2026-05-24)
 
 ### Bug Fixes
