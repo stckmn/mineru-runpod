@@ -1,3 +1,9 @@
+## [1.2.6](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.2.5...v1.2.6) (2026-05-26)
+
+### Bug Fixes
+
+* add logger debug ([b57c47f](https://github.com/sergeyshmakov/mineru-runpod/commit/b57c47f1578cb6a0f9cd00b40a30195891055f65))
+
 ## [1.2.5](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.2.4...v1.2.5) (2026-05-26)
 
 ### Bug Fixes
