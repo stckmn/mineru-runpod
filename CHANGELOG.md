@@ -1,3 +1,13 @@
+## [1.2.5](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.2.4...v1.2.5) (2026-05-26)
+
+### Bug Fixes
+
+* revert to print logger because runpod doesn't support structured logs ([3539f86](https://github.com/sergeyshmakov/mineru-runpod/commit/3539f86394854d9519704a183a817c7553d8d93f))
+
+### Documentation
+
+* add blackwell workaround and backlog info ([16244e9](https://github.com/sergeyshmakov/mineru-runpod/commit/16244e92b67a2fe27febee52f261b5ddec4c9526))
+
 ## [1.2.4](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.2.3...v1.2.4) (2026-05-26)
 
 ### Bug Fixes
