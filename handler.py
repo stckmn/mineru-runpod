@@ -287,6 +287,36 @@ async def _handle_parse(
 
 
 async def handler(job: dict) -> dict:
+    # ---- TEMPORARY DIAGNOSTIC (remove once log visibility is solved) ----
+    # Three different writes to figure out why our JSON logs don't surface
+    # in the RunPod dashboard despite stdout capture working for the SDK's
+    # own `Started.` / `Finished.` lines. Each line is tagged so we can tell
+    # in the dashboard which write paths reach the log viewer.
+    import sys as _sys  # noqa: PLC0415
+    print(
+        f"[mineru-diagnostic-A] print() to sys.stdout, "
+        f"sys.stdout={type(_sys.stdout).__name__} "
+        f"sys.__stdout__={type(_sys.__stdout__).__name__ if _sys.__stdout__ else 'None'}",
+        flush=True,
+    )
+    try:
+        _sys.stdout.write("[mineru-diagnostic-B] direct sys.stdout.write() + flush\n")
+        _sys.stdout.flush()
+    except Exception as _e:  # noqa: BLE001
+        print(f"[mineru-diagnostic-B-failed] {_e!r}", flush=True)
+    try:
+        if _sys.__stdout__ is not None:
+            _sys.__stdout__.write("[mineru-diagnostic-C] write to sys.__stdout__ (original)\n")
+            _sys.__stdout__.flush()
+    except Exception as _e:  # noqa: BLE001
+        print(f"[mineru-diagnostic-C-failed] {_e!r}", flush=True)
+    try:
+        _sys.stderr.write("[mineru-diagnostic-D] write to sys.stderr\n")
+        _sys.stderr.flush()
+    except Exception as _e:  # noqa: BLE001
+        print(f"[mineru-diagnostic-D-failed] {_e!r}", flush=True)
+    # ---- END DIAGNOSTIC ----
+
     started = time.monotonic()
     phase_ms: dict[str, int] = {}
     gpu_info = _debug.collect_gpu_info()
