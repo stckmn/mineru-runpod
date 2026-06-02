@@ -1,3 +1,13 @@
+## [1.6.1](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.6.0...v1.6.1) (2026-06-02)
+
+### Bug Fixes
+
+* bump runpod ci ([bc0d2cd](https://github.com/sergeyshmakov/mineru-runpod/commit/bc0d2cd48bec0bdca7591f1a1f29853015129f17))
+
+### Documentation
+
+* rename return to transport in network volumes guide ([a65c08c](https://github.com/sergeyshmakov/mineru-runpod/commit/a65c08cbf8010a76fc90937e57af06b57ec123f4))
+
 ## [1.6.0](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.5.1...v1.6.0) (2026-05-28)
 
 ### Features
