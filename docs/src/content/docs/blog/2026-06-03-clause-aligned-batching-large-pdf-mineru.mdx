@@ -16,7 +16,7 @@ tags:
 
 [ECMA-376](https://ecma-international.org/publications-and-standards/standards/ecma-376/) Part 1 (the *Office Open XML File Formats — Fundamentals and Markup Language Reference*) is **5,039 pages** of dense, table-heavy, XML-schema-laden specification in a single 35 MB PDF. It is the document that defines `.docx`, `.xlsx`, and `.pptx` down to the attribute. If you want a machine-readable, clause-addressable version of it, you have to parse all 5,039 pages, and almost everything about that page count makes a naive approach fall over.
 
-This is the story of parsing the whole thing through the [mineru-runpod](https://github.com/sergeyshmakov/mineru-runpod) serverless worker. The headline result: **36 batches, 5,039 pages, 46,637 content blocks, 4,174 tables, full contiguous coverage, ~$1.5 of GPU time.** The interesting part is not the total. It's *how you cut a 5,000-page document into pieces without breaking it*, which it turns out is a decision about clause structure, not page numbers.
+This is the story of parsing the whole thing through the [mineru-runpod](https://github.com/sergeyshmakov/mineru-runpod) serverless worker. The headline result: **36 batches, 5,039 pages, 46,637 content blocks, 4,174 tables, full contiguous coverage, ~$1.15 of GPU time.** The interesting part is not the total. It's *how you cut a 5,000-page document into pieces without breaking it*, which it turns out is a decision about clause structure, not page numbers.
 
 ## Why not just send the whole 5,000-page PDF?
 
@@ -87,7 +87,7 @@ Across the 35 timed batches, total GPU compute was **4,674.8 s (77.9 min)** at a
 | b25 | §21.2 DrawingML – Charts | 238 | 231.8 s | 1.03 |
 | b32 | Annex L Primer | 102 | 80.2 s | 1.27 |
 
-Cost worked out to roughly **$0.0003/page, ~$1.5 for the whole standard**. Before committing to that, a **3-page smoke test** (cents, ~110–130 s dominated by cold start) validated the entire pipeline end-to-end (URL fetch → parse → R2 upload → download → extract), the cheapest insurance you can buy on a big run.
+Cost worked out to roughly **$0.00023/page, ~$1.15 for the whole standard**. Before committing to that, a **3-page smoke test** (cents, ~110–130 s dominated by cold start) validated the entire pipeline end-to-end (URL fetch → parse → R2 upload → download → extract), the cheapest insurance you can buy on a big run.
 
 ## The parallelism lesson: it's RunPod-side, not in the worker
 
@@ -153,7 +153,7 @@ What I'd change next time: drive client concurrency directly from the endpoint's
 
 ### How long does it take to parse a 5,000-page PDF with MinerU?
 
-About 78 minutes of single-GPU compute (~1 page/sec on a 24 GB RTX A5000-class card with the VLM backend), or ~28 minutes of wall-clock at 3× worker concurrency. Cost is roughly $1.5 total at ~$0.0003/page.
+About 78 minutes of single-GPU compute (~1 page/sec on a 24 GB RTX A5000-class card with the VLM backend), or ~28 minutes of wall-clock at 3× worker concurrency. Cost is roughly $1.15 total at ~$0.00023/page.
 
 ### Why batch at clause boundaries instead of fixed page counts?
 
