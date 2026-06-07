@@ -133,11 +133,27 @@ def test_task_response_done_with_url():
 
 
 def test_task_response_done_without_url_becomes_failed():
-    """COMPLETED but no tarball_url means the endpoint lacks BUCKET_* config."""
+    """COMPLETED with results but no tarball_url means the endpoint lacks BUCKET_*."""
     raw = {"status": "COMPLETED", "output": {"ok": True, "results": [{"markdown": "# hi"}]}}
     resp = m.build_task_response("job-1", raw)
     assert resp["data"]["state"] == "failed"
     assert "BUCKET_" in resp["data"]["err_msg"]
+
+
+def test_task_response_done_with_empty_output_is_no_payload():
+    """COMPLETED with None/non-dict output -> generic 'no result payload', NOT the
+    misleading BUCKET_* guidance (which only fits the results-but-no-url case)."""
+    resp = m.build_task_response("job-1", {"status": "COMPLETED", "output": None})
+    assert resp["data"]["state"] == "failed"
+    assert resp["data"]["err_msg"] == "job completed but returned no result payload"
+    assert "BUCKET_" not in resp["data"]["err_msg"]
+
+
+def test_task_response_soft_failure_ok_false_without_error_key():
+    """ok=false with no error key falls back to the generic 'parse failed'."""
+    resp = m.build_task_response("job-1", {"status": "COMPLETED", "output": {"ok": False}})
+    assert resp["data"]["state"] == "failed"
+    assert resp["data"]["err_msg"] == "parse failed"
 
 
 def test_task_response_soft_failure_ok_false():
@@ -159,6 +175,15 @@ def test_task_response_failure_without_output():
     resp = m.build_task_response("job-1", {"status": "TIMED_OUT"})
     assert resp["data"]["state"] == "failed"
     assert resp["data"]["err_msg"] == "job TIMED_OUT"
+
+
+def test_task_response_failure_uses_top_level_error():
+    """Hard failures (crash/OOM/timeout) carry the reason in a top-level
+    `error`, not in `output` — surface it instead of the generic status."""
+    raw = {"status": "FAILED", "error": "worker exited unexpectedly (OOM)"}
+    resp = m.build_task_response("job-1", raw)
+    assert resp["data"]["state"] == "failed"
+    assert resp["data"]["err_msg"] == "worker exited unexpectedly (OOM)"
 
 
 def test_task_response_echoes_data_id():
@@ -192,6 +217,11 @@ class _FakeEndpoint:
         self.last_run = None
 
     def run(self, body):
+        # Mirror the real SDK heuristic (runner.py: wrap only if not already
+        # wrapped) so a regression that stopped pre-wrapping would surface here —
+        # the sibling `webhook` would get buried inside `input`.
+        if not body.get("input"):
+            body = {"input": body}
         self.last_run = body
         return _FakeJob("job-abc")
 
@@ -202,6 +232,23 @@ def fake_endpoint(monkeypatch):
 
     monkeypatch.setattr(runpod, "Endpoint", _FakeEndpoint)
     return _FakeEndpoint
+
+
+def _serve(monkeypatch, data: bytes) -> None:
+    """Make urllib.request.urlopen return `data` for any (https) URL — no network,
+    no file:// (the scheme guard rejects file://). Patches the module attribute
+    both client paths resolve at call time."""
+    class _Resp:
+        def read(self):
+            return data
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda url, *a, **k: _Resp())
 
 
 def test_requires_endpoint_id(fake_endpoint):
@@ -249,6 +296,39 @@ def test_create_task_rejects_unsupported_model(fake_endpoint):
         client.create_task("https://x", model_version="MinerU-HTML")
 
 
+def test_create_task_accepts_no_cache_and_cache_tolerance(fake_endpoint):
+    """The official no_cache / cache_tolerance params are accepted (no-op) for
+    signature compatibility — they must not raise, and don't reach the payload."""
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+    client.create_task("https://x/p.pdf", no_cache=True, cache_tolerance=0)
+    payload = client._endpoint.last_run["input"]
+    assert "no_cache" not in payload and "cache_tolerance" not in payload
+
+
+def test_create_task_wraps_transport_error(fake_endpoint, monkeypatch):
+    """A raw error from endpoint.run is wrapped in the uniform MineruClientError."""
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+
+    def boom(_body):
+        raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(client._endpoint, "run", boom)
+    with pytest.raises(MineruClientError, match="endpoint submission failed"):
+        client.create_task("https://x/p.pdf")
+
+
+def test_get_task_wraps_transport_error(fake_endpoint, monkeypatch):
+    """A raw error from the status query is wrapped in MineruClientError."""
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+
+    def boom(*a, **k):
+        raise RuntimeError("503 service unavailable")
+
+    monkeypatch.setattr(client._endpoint.rp_client, "get", boom)
+    with pytest.raises(MineruClientError, match="status query failed"):
+        client.get_task("job-abc")
+
+
 def test_get_task_maps_status_and_echoes_data_id(fake_endpoint):
     client = MineruApiClient(endpoint_id="ep-1", api_key="x")
     client.create_task("https://x/p.pdf", data_id="invoice-7")
@@ -287,35 +367,76 @@ def test_wait_for_task_times_out(fake_endpoint, monkeypatch):
         client.wait_for_task("job-abc", poll_interval=1, timeout=2)
 
 
-def test_download_results_extracts_tarball(fake_endpoint, tmp_path):
-    # build a fake .tar.gz and serve it via a file:// URL
-    src = tmp_path / "out.tar.gz"
+def test_wait_for_task_rejects_nonpositive_poll_interval(fake_endpoint):
+    """poll_interval<=0 is rejected up front (else the loop would busy-spin)."""
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+    with pytest.raises(ValueError, match="poll_interval must be > 0"):
+        client.wait_for_task("job-abc", poll_interval=0)
+
+
+def test_wait_for_task_retries_transient_error(fake_endpoint, monkeypatch):
+    """A transient status-query failure is retried, not propagated, until terminal."""
+    monkeypatch.setattr("mineru_client.api_compat.time.sleep", lambda _s: None)
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+
+    calls = {"n": 0}
+    done = {"status": "COMPLETED",
+            "output": {"ok": True, "results": [{"tarball_url": "https://s3/x.zip"}]}}
+
+    def flaky_get(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise MineruClientError("status query failed: connection reset")
+        return done
+
+    monkeypatch.setattr(client._endpoint.rp_client, "get", flaky_get)
+    resp = client.wait_for_task("job-abc", poll_interval=0.01, timeout=10)
+    assert resp["data"]["state"] == "done"
+    assert calls["n"] == 2  # first poll failed, retried, second succeeded
+
+
+def test_download_results_extracts_tarball(fake_endpoint, tmp_path, monkeypatch):
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         data = b"# parsed\n"
         info = tarfile.TarInfo("doc.md")
         info.size = len(data)
         tar.addfile(info, io.BytesIO(data))
-    src.write_bytes(buf.getvalue())
+    _serve(monkeypatch, buf.getvalue())
 
     client = MineruApiClient(endpoint_id="ep-1", api_key="x")
-    response = {"data": {"state": "done", "full_zip_url": src.as_uri()}}
+    response = {"data": {"state": "done", "full_zip_url": "https://bucket.example/out.tar.gz"}}
     dest = client.download_results(response, tmp_path / "out")
     assert (Path(dest) / "doc.md").read_bytes() == b"# parsed\n"
 
 
-def test_download_results_extracts_zip(fake_endpoint, tmp_path):
+def test_download_results_extracts_zip(fake_endpoint, tmp_path, monkeypatch):
     """The compat client requests .zip, so download_results must unpack a zip
     (it autodetects the container from the archive's magic bytes)."""
-    src = tmp_path / "out.zip"
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, mode="w") as zf:
         zf.writestr("doc.md", "# parsed\n")
-    src.write_bytes(buf.getvalue())
+    _serve(monkeypatch, buf.getvalue())
 
     client = MineruApiClient(endpoint_id="ep-1", api_key="x")
-    response = {"data": {"state": "done", "full_zip_url": src.as_uri()}}
+    response = {"data": {"state": "done", "full_zip_url": "https://bucket.example/out.zip"}}
     dest = client.download_results(response, tmp_path / "out")
+    assert (Path(dest) / "doc.md").read_text() == "# parsed\n"
+
+
+def test_download_results_from_bare_task_id_repolls(fake_endpoint, tmp_path, monkeypatch):
+    """A bare task_id re-polls get_task, then downloads — exercises the str branch."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w") as zf:
+        zf.writestr("doc.md", "# parsed\n")
+    _serve(monkeypatch, buf.getvalue())
+
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+    client._endpoint.rp_client.next_status = {
+        "status": "COMPLETED",
+        "output": {"ok": True, "results": [{"tarball_url": "https://bucket.example/out.zip"}]},
+    }
+    dest = client.download_results("job-abc", tmp_path / "out")
     assert (Path(dest) / "doc.md").read_text() == "# parsed\n"
 
 
@@ -324,3 +445,60 @@ def test_download_results_requires_url(fake_endpoint, tmp_path):
     response = {"data": {"state": "running"}}
     with pytest.raises(MineruClientError, match="no full_zip_url"):
         client.download_results(response, tmp_path / "out")
+
+
+def test_download_results_rejects_non_http_url(fake_endpoint, tmp_path):
+    """A non-HTTP(S) full_zip_url (e.g. file://) is refused before any fetch."""
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+    response = {"data": {"state": "done", "full_zip_url": "file:///etc/passwd"}}
+    with pytest.raises(MineruClientError, match="non-HTTP"):
+        client.download_results(response, tmp_path / "out")
+
+
+def test_download_results_rejects_tar_path_traversal(fake_endpoint, tmp_path, monkeypatch):
+    """A tar member that escapes the destination is refused before any write
+    (CVE-2007-4559 path-traversal guard)."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        payload = b"pwned\n"
+        info = tarfile.TarInfo("../escape.txt")
+        info.size = len(payload)
+        tar.addfile(info, io.BytesIO(payload))
+    _serve(monkeypatch, buf.getvalue())
+
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+    response = {"data": {"state": "done", "full_zip_url": "https://bucket.example/evil.tar.gz"}}
+    with pytest.raises(MineruClientError, match="escapes the destination"):
+        client.download_results(response, tmp_path / "out")
+    assert not (tmp_path / "escape.txt").exists()
+
+
+def test_download_results_rejects_tar_symlink_member(fake_endpoint, tmp_path, monkeypatch):
+    """A symlink member is rejected ('not a regular file or dir') — the
+    CVE-2007-4559 member-type branch that the traversal test doesn't reach."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        info = tarfile.TarInfo("link")
+        info.type = tarfile.SYMTYPE
+        info.linkname = "/etc/passwd"
+        tar.addfile(info)
+    _serve(monkeypatch, buf.getvalue())
+
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+    response = {"data": {"state": "done", "full_zip_url": "https://bucket.example/evil.tar.gz"}}
+    with pytest.raises(MineruClientError, match="not a regular file or dir"):
+        client.download_results(response, tmp_path / "out")
+
+
+def test_download_results_zip_traversal_is_contained(fake_endpoint, tmp_path, monkeypatch):
+    """A zip member with a traversal name must not land outside dest (stdlib
+    zipfile sanitizes; this locks the guarantee in for the primary .zip path)."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w") as zf:
+        zf.writestr("../escape.txt", "pwned\n")
+    _serve(monkeypatch, buf.getvalue())
+
+    client = MineruApiClient(endpoint_id="ep-1", api_key="x")
+    response = {"data": {"state": "done", "full_zip_url": "https://bucket.example/evil.zip"}}
+    client.download_results(response, tmp_path / "out")
+    assert not (tmp_path / "escape.txt").exists()

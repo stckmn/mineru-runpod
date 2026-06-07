@@ -158,6 +158,7 @@ The compat client raises a clear error rather than silently mis-parsing when you
 | `is_ocr`, `no_cache`, `cache_tolerance` | accepted, no-op (no worker equivalent) |
 | `seed` (callback signing) | accepted, unused (RunPod webhooks aren't signed) |
 | `data_id` | echoed from an in-process map; a `get_task` call in a *different* process won't echo it |
+| `data.extract_progress` (page counts) | not populated — RunPod's status API exposes `state`, not per-page progress |
 | Batch (`POST /extract/task/batch`, `file-urls/batch`) | not yet — submit tasks individually for now |
 
 ## When to switch to the native client

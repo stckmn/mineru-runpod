@@ -17,7 +17,7 @@ constructor; the migration is import + constructor + auth.
     client = MineruApiClient(endpoint_id="...", api_key="...")
     task_id = client.create_task(pdf_url, model_version="vlm")["data"]["task_id"]
     done = client.wait_for_task(task_id)          # convenience (not in MinerU's API)
-    client.download_results(done, "./out")        # full_zip_url is a .tar.gz here
+    client.download_results(done, "./out")        # full_zip_url is a .zip here
 
 This is a *trial / comparison* on-ramp, not a permanent production interface:
 for the worker's richer native features (inline markdown, volume_path, format
@@ -49,7 +49,7 @@ from ._mapping import (
     build_task_response,
     build_worker_payload,
 )
-from .client import MineruClientError
+from .client import MineruClientError, _require_http_url, _safe_tar_extractall
 
 
 def _download_and_extract(url: str, dest_dir: str | Path) -> Path:
@@ -65,7 +65,8 @@ def _download_and_extract(url: str, dest_dir: str | Path) -> Path:
     import urllib.request  # noqa: PLC0415
     import zipfile  # noqa: PLC0415
 
-    with urllib.request.urlopen(url) as resp:  # noqa: S310 — worker-issued presigned URL
+    _require_http_url(url)
+    with urllib.request.urlopen(url) as resp:  # noqa: S310 — scheme checked above
         data = resp.read()
     dest = Path(dest_dir)
     dest.mkdir(parents=True, exist_ok=True)
@@ -74,7 +75,7 @@ def _download_and_extract(url: str, dest_dir: str | Path) -> Path:
             zf.extractall(dest)
     else:
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
-            tar.extractall(dest)
+            _safe_tar_extractall(tar, dest)
     return dest
 
 
@@ -122,6 +123,8 @@ class MineruApiClient:
         callback: str | None = None,
         seed: str | None = None,
         extra_formats: list[str] | None = None,
+        no_cache: bool = False,
+        cache_tolerance: int | None = None,
     ) -> dict[str, Any]:
         """Submit a URL parse task. Mirrors ``POST /api/v4/extract/task``.
 
@@ -129,10 +132,11 @@ class MineruApiClient:
         {"task_id": ...}}``. The ``task_id`` is the RunPod job id; poll it with
         :meth:`get_task`.
 
-        ``is_ocr`` / ``seed`` are accepted for signature compatibility but have
-        no worker-side effect. ``callback`` is wired to RunPod's webhook (which,
-        unlike MinerU's, is not HMAC-signed). See the module docstring for the
-        full gap list.
+        ``is_ocr`` / ``seed`` / ``no_cache`` / ``cache_tolerance`` are accepted
+        for signature compatibility with the official API but have no worker-side
+        effect (the worker has no result cache). ``callback`` is wired to
+        RunPod's webhook (which, unlike MinerU's, is not HMAC-signed). See the
+        module docstring for the full gap list.
         """
         if not url:
             raise ValueError("url is required")
@@ -194,12 +198,29 @@ class MineruApiClient:
         """Poll :meth:`get_task` until the task reaches a terminal state.
 
         Returns the final ``get_task`` response (``state`` is ``done`` or
-        ``failed``). Raises ``MineruClientError`` if ``timeout`` elapses first.
-        The official API has no wait endpoint — this is a client convenience.
+        ``failed``). Raises ``MineruClientError`` if ``timeout`` elapses first. A
+        transient status-query failure does not abort the poll — it is retried
+        until the timeout budget is spent. The official API has no wait endpoint;
+        this is a client convenience.
         """
+        if poll_interval <= 0:
+            raise ValueError("poll_interval must be > 0")
         elapsed = 0.0
         while True:
-            response = self.get_task(task_id)
+            try:
+                response = self.get_task(task_id)
+            except MineruClientError as e:
+                # Transient status-query failure (5xx / connection blip). Don't
+                # discard a healthy long-running job over one bad poll; retry
+                # until the timeout budget is spent.
+                if elapsed >= timeout:
+                    raise MineruClientError(
+                        f"task {task_id} did not finish within {timeout}s "
+                        f"(last error: {e})"
+                    ) from e
+                time.sleep(poll_interval)
+                elapsed += poll_interval
+                continue
             state = response["data"]["state"]
             if state in ("done", "failed"):
                 return response

@@ -49,7 +49,7 @@ def main() -> int:
 
     print(f"full_zip_url={data['full_zip_url']}")
     dest = Path("./out/mineru_api_compat_example")
-    client.download_results(done, dest)         # unpacks the .tar.gz for you
+    client.download_results(done, dest)         # unpacks the archive (.zip) for you
     print(f"Extracted to: {dest.resolve()}")
     return 0
 

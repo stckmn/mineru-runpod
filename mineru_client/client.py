@@ -20,6 +20,45 @@ class MineruClientError(RuntimeError):
     """Raised when the remote handler returns ok=false, or transport fails."""
 
 
+def _safe_tar_extractall(tar, dest: Path) -> None:
+    """Extract a tar, rejecting members that escape ``dest`` or aren't regular
+    files/dirs — guards against path-traversal / absolute-path / symlink / device
+    archives (CVE-2007-4559). Then extracts with the stdlib ``data`` filter where
+    available (Python 3.11.4+/3.12) for defense-in-depth and to avoid the 3.14
+    default-filter deprecation; older patch releases fall back to the plain
+    extract, which the checks above already made safe.
+    """
+    dest = dest.resolve()
+    for member in tar.getmembers():
+        if not (member.isfile() or member.isdir()):
+            raise MineruClientError(
+                f"refusing unsafe tar member {member.name!r} (not a regular file or dir)"
+            )
+        target = (dest / member.name).resolve()
+        if target != dest and dest not in target.parents:
+            raise MineruClientError(
+                f"refusing tar member {member.name!r}: path escapes the destination"
+            )
+    try:
+        tar.extractall(dest, filter="data")
+    except TypeError:
+        tar.extractall(dest)
+
+
+def _require_http_url(url: str) -> None:
+    """Reject non-HTTP(S) archive URLs before fetching. Worker presigned URLs are
+    always https; allowing file://, ftp://, etc. from a (possibly caller-supplied)
+    response would invite local-file reads / SSRF.
+    """
+    from urllib.parse import urlparse  # noqa: PLC0415
+
+    scheme = urlparse(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        raise MineruClientError(
+            f"refusing to fetch archive from non-HTTP(S) URL (scheme {scheme!r})"
+        )
+
+
 class MineruClient:
     """Wraps a single deployed mineru-runpod endpoint.
 
@@ -225,7 +264,7 @@ class MineruClient:
         dest.mkdir(parents=True, exist_ok=True)
         raw = base64.b64decode(entry["tarball_b64"])
         with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
-            tar.extractall(dest)
+            _safe_tar_extractall(tar, dest)
         return dest
 
     @staticmethod
@@ -246,12 +285,13 @@ class MineruClient:
         # Lazy import so the client stays dependency-light for callers that
         # only use the tarball_b64 / inline paths.
         import urllib.request  # noqa: PLC0415
-        with urllib.request.urlopen(entry["tarball_url"]) as resp:
+        _require_http_url(entry["tarball_url"])
+        with urllib.request.urlopen(entry["tarball_url"]) as resp:  # noqa: S310
             data = resp.read()
         dest = Path(dest_dir)
         dest.mkdir(parents=True, exist_ok=True)
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
-            tar.extractall(dest)
+            _safe_tar_extractall(tar, dest)
         return dest
 
     @staticmethod

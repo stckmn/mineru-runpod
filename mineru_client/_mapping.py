@@ -173,8 +173,9 @@ def extract_full_zip_url(output: Any) -> str | None:
     """Pull the presigned archive URL out of a worker success response.
 
     The worker's ``transport:"s3"`` puts a presigned ``tarball_url`` on the first
-    (only, for single-file) entry of ``results``. That URL is what we surface as
-    MinerU's ``full_zip_url`` — note it points at a ``.tar.gz``, not a ``.zip``.
+    (only, for single-file) entry of ``results``; this returns it verbatim as
+    MinerU's ``full_zip_url``. The container is whatever the task requested — the
+    compat client requests ``archive_format="zip"``, so it is normally a ``.zip``.
     """
     if not isinstance(output, dict):
         return None
@@ -206,10 +207,10 @@ def build_task_response(
     - The worker signals a soft failure (bad input, parse error) by returning
       ``{"ok": false, "error": ...}`` — sometimes on a job RunPod still reports
       COMPLETED. We treat ``ok is False`` as ``state="failed"``.
-    - A genuine ``done`` with no ``tarball_url`` means the endpoint lacks the
-      ``BUCKET_*`` config that ``transport:"s3"`` needs. That's surfaced as a
-      ``failed`` state with an actionable ``err_msg`` rather than a useless
-      ``done`` with no downloadable result.
+    - A ``done`` with results but no ``tarball_url`` means the endpoint lacks the
+      ``BUCKET_*`` config that ``transport:"s3"`` needs; a ``done`` with no result
+      payload at all gets a generic message. Both are surfaced as ``failed``
+      rather than a useless ``done`` with nothing to download.
     """
     status = raw_status.get("status") if isinstance(raw_status, dict) else None
     output = raw_status.get("output") if isinstance(raw_status, dict) else None
@@ -227,15 +228,26 @@ def build_task_response(
             url = extract_full_zip_url(output)
             if url:
                 data["full_zip_url"] = url
-            else:
+            elif isinstance(output, dict) and output.get("results"):
+                # Completed with results but no tarball_url → object storage is
+                # not configured on the endpoint.
                 data["state"] = "failed"
                 data["err_msg"] = (
                     "endpoint returned no downloadable archive URL. Deploy the "
                     "RunPod endpoint with BUCKET_* env vars so transport='s3' "
                     "produces a presigned archive (surfaced as full_zip_url)."
                 )
+            else:
+                # Completed but no usable result payload at all (empty/odd output).
+                data["state"] = "failed"
+                data["err_msg"] = "job completed but returned no result payload"
     elif state == "failed":
+        # Hard failures (worker crash, OOM, timeout) surface the reason in a
+        # top-level `error`; handler-returned errors may sit in `output`. Prefer
+        # whichever is present before falling back to the generic status string.
         err = output.get("error") if isinstance(output, dict) else None
+        if not err and isinstance(raw_status, dict):
+            err = raw_status.get("error")
         data["err_msg"] = str(err) if err else f"job {status}"
 
     return {"code": 0, "msg": "ok", "trace_id": task_id, "data": data}
