@@ -1,3 +1,19 @@
+## [1.6.4](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.6.3...v1.6.4) (2026-06-07)
+
+### Bug Fixes
+
+* update docs and readme stale version + revert tests to 4090 ([7939c39](https://github.com/sergeyshmakov/mineru-runpod/commit/7939c393d6fcfbaee4d1a0c4e539ab7f360c35cb))
+
+### Documentation
+
+* add blog post ([6950a7c](https://github.com/sergeyshmakov/mineru-runpod/commit/6950a7c4318e9a76cf3ae9f351180dc5e43bed5b))
+* blog post about popular runpod error ([8a25752](https://github.com/sergeyshmakov/mineru-runpod/commit/8a2575299b160374ae9bb641f4ef7077db41eac7))
+* blog post crosslink ([2eb0e0b](https://github.com/sergeyshmakov/mineru-runpod/commit/2eb0e0b3da1ff3fb10a74a7622248a3ff0e53b14))
+* example + blog post ([6eb311a](https://github.com/sergeyshmakov/mineru-runpod/commit/6eb311a6ed7ec5c82d6e7f00bc58f809dca5af93))
+* fix links in blog posts ([6fdc68e](https://github.com/sergeyshmakov/mineru-runpod/commit/6fdc68e97d3a650fa1cc279ff8ed17c34dd8fd2c))
+* show debug block in failure response example ([21f5a11](https://github.com/sergeyshmakov/mineru-runpod/commit/21f5a11ef5990d90a7c77374d145e23e08e9cf12))
+* update numbers in blog post ([e742c86](https://github.com/sergeyshmakov/mineru-runpod/commit/e742c86346a8073deb69fff600c27f14d23ab724))
+
 ## [1.6.3](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.6.2...v1.6.3) (2026-06-02)
 
 ### Bug Fixes
