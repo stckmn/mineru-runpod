@@ -25,15 +25,15 @@ The [official MinerU API](https://mineru.net/apiManage/docs) caps each file at 2
 
 The data path matters too. On the SaaS, every document round-trips through `mineru.net`. Self-hosted, the worker pulls the file from a URL you control (or you send the bytes inline), parses on your GPU, and writes the result to your bucket. Nothing transits a vendor you have to put in a data-processing agreement.
 
-The trade-off is honest: you run the infrastructure. That means a cold-start tax on the first request after the worker scales to zero, and a one-time model download on first boot. If your traffic is a handful of pages a month, the cloud API's free tier is simpler. Cross into steady volume and the math flips.
+The trade-off is honest: you run the infrastructure. There's a cold-start cost, but FlashBoot blunts it: once a host has booted the worker, it restores from a process snapshot in ~7-8 s across scale-to-zero cycles, and only a brand-new host pays the full ~110 s (vLLM init plus loading the model into VRAM). The model is baked into the image, so nothing is downloaded at request time. If your traffic is a handful of pages a month, the cloud API's free tier is simpler; cross into steady volume and the math flips.
 
 ## What does self-hosting MinerU cost vs the cloud API?
 
-Roughly **$0.001 per page** warm on a 24 GB RTX 4090, plus a **~$0.03 fixed tax per cold start** (about 110 seconds of GPU billing for vLLM engine init plus model load). RunPod bills per second and scales to zero, so an idle endpoint costs nothing. The cloud API is free under its daily quota, then queues or meters you; self-hosting trades that ceiling for a steady, predictable per-page rate.
+Roughly **$0.001 per page** warm on a 24 GB RTX 4090, plus a **~$0.03 cold-start tax** the first time a host boots the worker (≈110 s of GPU billing for vLLM init and loading the baked model into VRAM). FlashBoot then snapshots that state, so the same host restarts in ~7-8 s across scale-to-zero cycles. RunPod bills per second and scales to zero, so an idle endpoint costs nothing. The cloud API is free under its daily quota, then queues or meters you; self-hosting trades that ceiling for a steady, predictable per-page rate.
 
-The real number depends on how well you amortize the cold start. A thousand pages parsed across one warm window land near $0.001/page; a single short doc per scale-from-zero lands closer to $0.005–$0.01 because you're paying the fixed tax against very few pages. I broke the full workload-shape math down in [Serverless MinerU on RunPod: honest cost math](/mineru-runpod/blog/2026-05-19-launching-mineru-runpod/).
+The real number depends on how well you amortize that first-boot tax. A thousand pages parsed across one warm window land near $0.001/page; a single short doc on a cold host lands closer to $0.005–$0.01 because you're paying the one-time tax against very few pages. FlashBoot shrinks that in practice, since a host pays the full tax only once. I broke the full workload-shape math down in [Serverless MinerU on RunPod: honest cost math](/mineru-runpod/blog/2026-05-19-launching-mineru-runpod/).
 
-Two costs the marketing pages tend to skip: the ~110-second cold start is billed GPU time, and the first boot on a fresh image downloads the model (a few minutes, once). Neither is a dealbreaker, but budget for them instead of being surprised.
+One cost the marketing pages skip: the first-boot cold start (~110 s on a brand-new host) is billed GPU time. FlashBoot snapshots that boot, so the same host restarts in ~7-8 s afterward. The model is baked into the image, so there's no model-download step at boot or request time. Budget for the first boot per host, not for every request.
 
 ## How do you deploy your own MinerU endpoint on RunPod?
 
