@@ -24,3 +24,5 @@ CLAUDE.md
 
 tmp-screenshots
 tmp-scripts/
+# IDE / editor metadata
+.project
