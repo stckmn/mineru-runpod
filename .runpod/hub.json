@@ -164,8 +164,8 @@
         "input": {
           "name": "Skip eager warmup at boot",
           "type": "string",
-          "description": "Set to 1/true/yes to bypass the eager warmup. Default off (warmup runs). Disable only for debugging cold-start ordering.",
-          "default": "",
+          "description": "Set to 1/true/yes to bypass the eager warmup. Default on for the standard RunPod handler path; the first request loads the model in the serve loop instead.",
+          "default": "1",
           "advanced": true
         }
       },

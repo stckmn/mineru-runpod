@@ -574,15 +574,9 @@ def _bootstrap_main() -> None:
     asyncio.run(_bootstrap())
 
 
-if __name__ == "__main__":
-    # Local-test mode (RUNPOD_WEBHOOK_GET_JOB unset, or --test_input on
-    # the CLI) — fall back to runpod.serverless.start() which routes to
-    # rp_local. Warmup doesn't apply in local mode (no real worker
-    # lifecycle), and rp_local has its own asyncio.run().
-    if os.environ.get("RUNPOD_WEBHOOK_GET_JOB") is None:
-        runpod.serverless.start({
-            "handler": handler,
-            "concurrency_modifier": _concurrency_modifier,
-        })
-    else:
-        _bootstrap_main()
+# Start the RunPod serverless worker. This call must live at module scope
+# so RunPod's GitHub repository indexer can detect the handler entry point.
+runpod.serverless.start({
+    "handler": handler,
+    "concurrency_modifier": _concurrency_modifier,
+})
