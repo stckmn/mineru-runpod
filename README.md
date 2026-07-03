@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](pyproject.toml)
 [![MinerU](https://img.shields.io/badge/MinerU-3.4.2-purple)](https://github.com/opendatalab/MinerU)
-[![Runpod](https://api.runpod.io/badge/sergeyshmakov/mineru-runpod)](https://console.runpod.io/hub/sergeyshmakov/mineru-runpod)
+[![Runpod](https://api.runpod.io/badge/stckmn/mineru-runpod)](https://console.runpod.io/hub/stckmn/mineru-runpod)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fa6673.svg)](https://www.conventionalcommits.org/)
 
 Serverless [MinerU](https://github.com/opendatalab/MinerU) PDF parser on [RunPod](https://runpod.io?ref=31jdfpnq). **MinerU 3.4.2** runtime with the `MinerU2.5-Pro-2605-1.2B` VLM, `vllm/vllm-openai:v0.21.0` base image, and exposed `effort` / `image_analysis` parameters. Scales to zero, ~$0.0003 per page on a 24 GB serverless RTX 4090, ten minutes from sign-up to first parse.
