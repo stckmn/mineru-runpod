@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 import signal
-import sys
 import tempfile
 import threading
 import time
@@ -575,13 +574,11 @@ def _bootstrap_main() -> None:
     asyncio.run(_bootstrap())
 
 
-# RunPod's GitHub-repo indexer expects to see runpod.serverless.start() at
-# module scope, but production needs the custom _bootstrap_main() so that
-# warmup and serving share one asyncio event loop (avoiding vLLM
-# EngineDeadError). Local-test mode uses the standard SDK path.
-# Skip during pytest imports so the test suite can import this module without
-# blocking on runpod.serverless.start() / _bootstrap_main().
-if "pytest" not in sys.modules:
+if __name__ == "__main__":
+    # Local-test mode (RUNPOD_WEBHOOK_GET_JOB unset, or --test_input on
+    # the CLI) — fall back to runpod.serverless.start() which routes to
+    # rp_local. Warmup doesn't apply in local mode (no real worker
+    # lifecycle), and rp_local has its own asyncio.run().
     if os.environ.get("RUNPOD_WEBHOOK_GET_JOB") is None:
         runpod.serverless.start({
             "handler": handler,
