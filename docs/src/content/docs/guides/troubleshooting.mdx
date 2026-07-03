@@ -34,7 +34,7 @@ What to look at:
 |---|---|
 | `backend` | The string passed to MinerU. If you set `pipeline` but see `vlm-auto-engine`, your caller isn't sending what you think it is |
 | `input_format` | Auto-detected from bytes. If you uploaded a PDF and see `unknown`, your transport returned an error page (HTML), not the file body |
-| `model_dir` | Filesystem path of the snapshot that actually loaded. Both VLM and pipeline models are baked into the image at `/root/.cache/huggingface/`; if this is `null` on a successful job, the image build skipped the model bake step (unusual — file a bug) |
+| `model_dir` | Filesystem path of the snapshot that actually loaded. Models are cached under `/root/.cache/huggingface/`; if this is `null` on a successful job, the worker has not yet downloaded models (expected on the very first request of a cold worker)
 | `gpu.compute_capability` | 8.6 = Ampere (3090, A5000, A6000), 8.9 = Ada (4090, RTX 6000 Ada), 9.0 = Hopper (H100), 12.0 = **Blackwell — VLM will crash** |
 | `phase_ms.fetch_input` | If hundreds of seconds on a `file_url` job, the source URL is slow / failing |
 | `phase_ms.mineru_parse` | Per-page guidance for warm workers, **highly GPU- and content-dependent**: MinerU upstream cites **~0.5 s/page (2.12 fps) on an A100** for the VLM backend; we measured a range of **~1 s/page on uniform multi-page reports up to ~10 s/page on dense financial forms** on an A5000 24 GB (≈3.5 s/page is a reasonable single-number estimate) under the default `gpu_memory_utilization=0.5`. Pipeline backend is ~3–5 s/page across GPUs (CPU-bound for layout, GPU-bound only for OCR). **First call on a fresh worker is much higher** (model load + vLLM warmup adds ~90–130 s for the VLM backend). If a warm-worker call is 5× the expected per-page number for your GPU and content type, you're memory-bound and vLLM is swapping |
@@ -78,13 +78,14 @@ If you bump vLLM, re-check the CUDA floor from upstream's release notes (vLLM v0
 Build exceeded maximum time limit of 1800 seconds (30.0 minutes). Build terminated.
 ```
 
-**Cause**: RunPod's build pipeline has a hard 30-minute ceiling. The image bakes ~4 GB of model weights (MinerU VLM + PDF-Extract-Kit) and installs vLLM + Torch on top; on a slow build-region day, those steps alone can blow past the cap.
+**Cause**: RunPod's build pipeline has a hard 30-minute ceiling. Baking ~4 GB of model weights (MinerU VLM + PDF-Extract-Kit) into the image on top of the vLLM base can blow past the cap on a slow build-region day.
 
-**Fix**: the `Dockerfile` already uses `hf-xet` with `HF_XET_HIGH_PERFORMANCE=1` for fast model bakes, and the two model downloads are split into separate RUN layers so a partial cache survives retries. If you still time out:
+**Fix**: this template keeps models out of the image by default; they download at runtime into the HF cache. If you forked the repo and re-added model-baking `snapshot_download` steps:
 
 - Re-trigger the build (often a transient HF-egress slowdown)
-- Pin a smaller VLM model via `MINERU_VL_MODEL_NAME` for http-client backends — doesn't help here since the bake is unconditional
-- As a last resort, drop one of the baked models and rely on RunPod's per-endpoint model cache (one model only — see the [model caching docs](https://docs.runpod.io/serverless/endpoints/manage-endpoints))
+- Use `hf-xet` with `HF_XET_HIGH_PERFORMANCE=1` for faster downloads
+- Split the two model downloads into separate `RUN` layers so a partial cache survives retries
+- As a last resort, remove the baked models and rely on runtime downloads or a network volume at `/root/.cache/huggingface`
 
 ### Escape hatch: skip the validator entirely
 

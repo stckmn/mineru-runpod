@@ -46,9 +46,14 @@ Network volume storage on RunPod is roughly **$0.07/GB-month** (check [current p
 
 ## Problem 2: caching MinerU weights
 
-**You don't need to do anything here** — both model dependencies (`opendatalab/MinerU2.5-Pro-2605-1.2B` for the VLM backend and `opendatalab/PDF-Extract-Kit-1.0` for the pipeline backend) are **baked into the worker image at build time**, at `/root/.cache/huggingface/`. No Cached Models setup, no Network Volume, no runtime download.
+By default, this template **does not bake model weights into the Docker image**. Both model dependencies (`opendatalab/MinerU2.5-Pro-2605-1.2B` for the VLM backend and `opendatalab/PDF-Extract-Kit-1.0` for the pipeline backend) are downloaded into `/root/.cache/huggingface/` on the first parse request. This keeps the image small so RunPod Hub's build/test pipeline can finish in time.
 
-If you'd rather slim the image and rely on RunPod's Cached Models feature for the VLM only (which has a single-model dashboard limit), fork the Dockerfile to skip the `RUN snapshot_download` step. The pipeline backend would then need either a Network Volume or `HF_HUB_OFFLINE=0` for runtime downloads.
+The first request on a cold worker is therefore slow (model download + load). Two ways to fix that:
+
+1. **Network volume for the HF cache** — mount a volume at `/root/.cache/huggingface`. The first worker downloads the weights, and every subsequent worker (warm or cold) reuses them. This is the simplest persistent-cache option.
+2. **Bake models back into a private image** — fork the Dockerfile and re-add the `snapshot_download` steps. The image grows to ~22 GB and may fail RunPod Hub's test window; deploy it via **Deploy from image** instead of the GitHub repo flow.
+
+RunPod's **Cached Models** dashboard feature only supports one model per endpoint, and MinerU needs two, so that feature is not used by this template.
 
 ## Problem 3: persisting outputs between jobs
 
@@ -89,4 +94,4 @@ If your endpoint has multiple regions enabled and you're running on a network vo
 
 - **You parse each document once and discard.** Just use `file_url` — no point paying storage rent.
 - **Your input set is small and changes constantly.** Inline base64 (`file_b64`) is fine for ≤20 MB inputs.
-- **You only care about cold-start latency.** Both MinerU models are baked into the image; a volume for model weights duplicates that work.
+- **You only care about cold-start latency and are baking models into a private image.** In the default template, a network volume at `/root/.cache/huggingface` is the recommended way to avoid re-downloading weights on every cold start.

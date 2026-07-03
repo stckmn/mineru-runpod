@@ -189,7 +189,7 @@ Every response includes a top-level `debug` block with information that lets you
 | Field | Notes |
 |---|---|
 | `backend` | The backend that ran. Echoes the input or the default |
-| `model_dir` | Filesystem path of the model snapshot that loaded. Both VLM and pipeline models are baked into the image at `/root/.cache/huggingface/`; the path you see here proves which snapshot the worker resolved (`null` if HF cache is empty, which should not happen on the published image) |
+| `model_dir` | Filesystem path of the model snapshot that loaded. Models are cached under `/root/.cache/huggingface/`; the path proves which snapshot the worker resolved. `null` means the cache is empty (first request has not downloaded models yet)
 | `gpu` | Card name, `compute_capability` (8.6 = Ampere, 8.9 = Ada, 9.0 = Hopper, 12.0 = Blackwell), VRAM. Helps debug "why did my job land on a different card than my pool config?" |
 | `phase_ms` | Per-phase timings: `fetch_input` (download/decode), `mineru_parse` (MinerU's `aio_do_parse`), `package` (tarball or inline assembly) |
 

@@ -6,7 +6,7 @@
   "iconUrl": "https://raw.githubusercontent.com/sergeyshmakov/mineru-runpod/main/.runpod/icon.png",
   "config": {
     "runsOn": "GPU",
-    "containerDiskInGb": 50,
+    "containerDiskInGb": 60,
     "gpuCount": 1,
     "gpuIds": "ADA_24,AMPERE_24,AMPERE_48",
     "allowedCudaVersions": ["13.0", "12.9"],

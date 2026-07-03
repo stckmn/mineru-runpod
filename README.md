@@ -93,6 +93,16 @@ Send `{"input": {...}}` to `/runsync` (or `/run`). The most-used fields:
 
 Responses wrap each file in a `results: [...]` list alongside a top-level `debug` block; failures set `ok=false` with a top-level `error`. The full field list, per-transport response shapes, and validation rules live in the **[API reference](https://sergeyshmakov.github.io/mineru-runpod/reference/api/)** (mirrored from the docstring atop [`handler.py`](handler.py)).
 
+## Cold starts
+
+This template keeps the Docker image small by **downloading model weights on the first request** instead of baking the full ~4 GB into the image. The trade-offs:
+
+- **Build/test:** passes RunPod Hub's limits easily (small image, fast pull).
+- **Cold start:** the first request on a fresh worker downloads `opendatalab/MinerU2.5-Pro-2605-1.2B` and `opendatalab/PDF-Extract-Kit-1.0` from Hugging Face. This can take a few minutes, so set the endpoint **Execution timeout** to at least `600` seconds.
+- **Warm workers:** once weights are cached in the worker, subsequent parses are fast. Use a longer **Idle timeout** (e.g., `300`–`600` seconds) if you want to keep workers warm between bursts.
+
+If you need zero cold-start latency, fork the repo and [bake the models back into the Dockerfile](https://github.com/stckmn/mineru-runpod/blob/main/Dockerfile) — just note that the Hub test may time out on the resulting 20+ GB image.
+
 ## How does it compare?
 
 Parsing accuracy is MinerU's domain; their published [OmniDocBench](https://github.com/opendatalab/OmniDocBench) leaderboard puts the 1.2B VLM ahead of much larger general-purpose models:

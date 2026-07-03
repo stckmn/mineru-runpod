@@ -1,5 +1,5 @@
 # MinerU on RunPod Serverless — generic PDF parsing worker.
-# MinerU 3.2.x runtime, MinerU2.5-Pro-2605-1.2B VLM as the default model.
+# MinerU 3.4.2 runtime, MinerU2.5-Pro-2605-1.2B VLM as the default model.
 #
 # Base image: vllm/vllm-openai (recommended by MinerU upstream — bundles CUDA
 # + a working vLLM that the VLM backend depends on).
@@ -7,34 +7,26 @@
 # At runtime: handler.py listens for RunPod jobs, downloads/decodes the input
 # PDF, calls MinerU's async parse, and returns the result as a base64 tarball.
 #
-# Model weights are baked into the image at build time (under HF's default
-# cache at /root/.cache/huggingface). RunPod's Cached Models
-# dashboard feature only supports one model per endpoint, and MinerU needs
-# two: the VLM (opendatalab/MinerU2.5-Pro-2605-1.2B) and the pipeline-
-# backend model set (opendatalab/PDF-Extract-Kit-1.0). Baking both removes
-# the dependency on RunPod's Cached Models setup, the Network Volume, and
-# any per-endpoint runtime-download tax. Trade-off: image grows by ~4 GB.
+# Model weights are NOT baked into this image. They are downloaded on the
+# first parse request to HF's default cache at /root/.cache/huggingface.
+# This keeps the image small enough to pass RunPod Hub's build/test window
+# (under 30 min build / 160 min total). Trade-off: the first request on a
+# cold worker is slow while ~4 GB of weights download. Set the execution
+# timeout high (>= 600 s) and idle timeout long enough to keep workers warm.
 
 ARG VLLM_VERSION=v0.21.0
 FROM vllm/vllm-openai:${VLLM_VERSION}
 
-# HF_HUB_OFFLINE=1 + TRANSFORMERS_OFFLINE=1 force the HuggingFace libs to
-# read from cache only. Since model weights are baked into the image, the
-# cache is always present. Offline mode prevents accidental downloads if
-# anything tries to call out at runtime — fail-fast against misconfigured
-# endpoints.
-#
-# Model selection: MinerU 3.2.x's library default is
-# `opendatalab/MinerU2.5-Pro-2605-1.2B` for the VLM backend; pipeline
-# backend uses `opendatalab/PDF-Extract-Kit-1.0`. Both are baked below.
-# Note: MinerU bumps the VLM default on minor-version releases (3.1→3.2
-# bumped 2604→2605); the requirements.txt pin is minor-locked to keep
-# the baked model in sync with the library default.
+# Allow HuggingFace libs to download model weights at runtime. Models are
+# cached under /root/.cache/huggingface inside the worker; on a warm worker
+# they are reused across requests. On a cold start the first parse triggers
+# the download, so keep the execution timeout generous.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    HF_HUB_OFFLINE=1 \
-    TRANSFORMERS_OFFLINE=1
+    HF_HUB_OFFLINE=0 \
+    TRANSFORMERS_OFFLINE=0 \
+    HF_XET_HIGH_PERFORMANCE=1
 
 # vllm-openai inherits an entrypoint that launches the OpenAI server. Override
 # it so our handler can be the process.
@@ -63,38 +55,8 @@ RUN pip install --no-cache-dir uv
 COPY requirements.txt /worker/requirements.txt
 RUN uv pip install --system --no-cache -r requirements.txt
 
-# Bake both MinerU model dependencies into the image at /root/.cache/huggingface
-# (HF's default cache path). Runs AFTER pip install so huggingface_hub is
-# available, and BEFORE the handler.py COPY so iterating on handler code
-# doesn't bust these layers.
-#
-# - MinerU2.5-Pro-2605-1.2B: the VLM backend's model
-# - PDF-Extract-Kit-1.0: the pipeline backend's OCR + layout + formula +
-#   table models
-#
-# Split into two RUN layers (one per model) so a partial failure or a
-# bump to a single model only re-downloads that model, not both. The
-# ~30-minute RunPod build ceiling makes this resilience valuable.
-#
-# HF_XET_HIGH_PERFORMANCE=1 tells the Xet backend (hf-xet, pinned in
-# requirements.txt) to saturate the build node's network bandwidth and
-# CPU cores during the snapshot pull. Replaces the now-deprecated
-# HF_HUB_ENABLE_HF_TRANSFER flag — Hugging Face has moved all transfers
-# to the Xet storage backend, so hf_transfer is no longer used.
-#
-# HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE are set to "0" inline for these
-# RUN steps only — the image-wide ENV directive above keeps them at "1"
-# so that runtime stays in offline mode. Without this inline override
-# the build would fail with LocalEntryNotFoundError (we'd be trying to
-# download with offline mode forced on).
-# hadolint ignore=DL3059
-RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 HF_XET_HIGH_PERFORMANCE=1 \
-    python3 -c "from huggingface_hub import snapshot_download; \
-    snapshot_download(repo_id='opendatalab/MinerU2.5-Pro-2605-1.2B')"
-# hadolint ignore=DL3059
-RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 HF_XET_HIGH_PERFORMANCE=1 \
-    python3 -c "from huggingface_hub import snapshot_download; \
-    snapshot_download(repo_id='opendatalab/PDF-Extract-Kit-1.0')"
+# NOTE: Model weights are intentionally downloaded at runtime, not baked
+# into the image. See the comment at the top of this file for the rationale.
 
 # Copy the worker code last so iterating on it doesn't bust the pip or
 # model-cache layers. handler.py is the entry point; the worker/ package
