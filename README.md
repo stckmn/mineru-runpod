@@ -4,11 +4,11 @@
 [![CI](https://github.com/sergeyshmakov/mineru-runpod/actions/workflows/ci.yml/badge.svg)](https://github.com/sergeyshmakov/mineru-runpod/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](pyproject.toml)
-[![MinerU](https://img.shields.io/badge/MinerU-3.2-purple)](https://github.com/opendatalab/MinerU)
+[![MinerU](https://img.shields.io/badge/MinerU-3.4.2-purple)](https://github.com/opendatalab/MinerU)
 [![Runpod](https://api.runpod.io/badge/sergeyshmakov/mineru-runpod)](https://console.runpod.io/hub/sergeyshmakov/mineru-runpod)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fa6673.svg)](https://www.conventionalcommits.org/)
 
-Serverless [MinerU](https://github.com/opendatalab/MinerU) PDF parser on [RunPod](https://runpod.io?ref=31jdfpnq). MinerU 3.2.x runtime with the `MinerU2.5-Pro-2605-1.2B` VLM. Scales to zero, ~$0.0003 per page on a 24 GB serverless RTX 4090, ten minutes from sign-up to first parse.
+Serverless [MinerU](https://github.com/opendatalab/MinerU) PDF parser on [RunPod](https://runpod.io?ref=31jdfpnq). **MinerU 3.4.2** runtime with the `MinerU2.5-Pro-2605-1.2B` VLM, `vllm/vllm-openai:v0.21.0` base image, and exposed `effort` / `image_analysis` parameters. Scales to zero, ~$0.0003 per page on a 24 GB serverless RTX 4090, ten minutes from sign-up to first parse.
 
 **📚 [Docs](https://sergeyshmakov.github.io/mineru-runpod/)**  ·  **🚀 [Get started on RunPod](https://runpod.io?ref=31jdfpnq)**  ·  **📝 [Blog](https://sergeyshmakov.github.io/mineru-runpod/blog/)**
 
@@ -86,6 +86,8 @@ Send `{"input": {...}}` to `/runsync` (or `/run`). The most-used fields:
 | `file_url` / `file_b64` / `volume_path` | exactly one | — | Public URL, base64 bytes, or container path. Format auto-detected. |
 | `end_page` | no | `-1` | 0-based inclusive; `-1` = end of doc |
 | `backend` | no | `"vlm-auto-engine"` | `pipeline` / `vlm-auto-engine` / `hybrid-*` / `*-http-client` |
+| `effort` | no | `"medium"` | Hybrid backend only: `medium` (faster) or `high` (max accuracy + image analysis) |
+| `image_analysis` | no | `true` | Enable chart/image understanding for VLM and hybrid backends |
 | `transport` | no | `"tarball_b64"` | `tarball_b64` / `inline` / `s3` — how output ships back |
 | `formats` | no | all four | Subset of `markdown` / `content_list` / `middle` / `images` |
 

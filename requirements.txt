@@ -10,7 +10,7 @@
 # Bump deliberately: when crossing minors, update both this pin AND the
 # Dockerfile bake step in the same commit. Requires vllm 0.10.1.1+ — see
 # Dockerfile FROM tag.
-mineru[core,vllm]>=3.2.0,<3.3.0
+mineru[core,vllm]>=3.4.2,<3.5.0
 
 # RunPod serverless SDK — provides runpod.serverless.start() and async helpers.
 runpod>=1.7.0

@@ -29,6 +29,10 @@ VALID_BACKENDS = {
 # `full_zip_url`. No-op for the inline transport.
 VALID_ARCHIVE_FORMATS = {"tar.gz", "zip"}
 
+# MinerU 3.3+ hybrid backend effort level. `medium` is faster and the default;
+# `high` keeps the previous maximum-accuracy behavior and enables image analysis.
+VALID_EFFORTS = {"medium", "high"}
+
 
 # rp_validator's `constraints` lambdas are silently ignored on some versions
 # — we declare them anyway for documentation but never rely on them.
@@ -53,6 +57,9 @@ INPUT_SCHEMA: dict[str, dict[str, Any]] = {
     "formats":        {"type": list, "required": False, "default": list(VALID_FORMATS)},
     "basename":       {"type": str,  "required": False, "default": "doc"},
     "archive_format": {"type": str,  "required": False, "default": "tar.gz"},
+    # MinerU 3.3+ parameters
+    "effort":         {"type": str,  "required": False, "default": "medium"},
+    "image_analysis": {"type": bool, "required": False, "default": True},
 }
 
 
@@ -129,6 +136,15 @@ def validate_input(job_input: dict) -> dict:
     if backend not in VALID_BACKENDS:
         _fail(f"backend must be one of {sorted(VALID_BACKENDS)}; got {backend!r}")
     cleaned["backend"] = backend
+
+    effort = cleaned.get("effort") or "medium"
+    if effort not in VALID_EFFORTS:
+        _fail(f"effort must be one of {sorted(VALID_EFFORTS)}; got {effort!r}")
+    cleaned["effort"] = effort
+
+    image_analysis = cleaned.get("image_analysis")
+    if image_analysis is None:
+        cleaned["image_analysis"] = True
 
     start_page = cleaned.get("start_page", 0) or 0
     if start_page < 0:

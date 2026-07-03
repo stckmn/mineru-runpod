@@ -298,6 +298,8 @@ async def _handle_parse(
                 server_url=cleaned.get("server_url"),
                 formula_enable=cleaned["formula_enable"],
                 table_enable=cleaned["table_enable"],
+                effort=cleaned["effort"],
+                image_analysis=cleaned["image_analysis"],
             )
         parse_seconds = time.monotonic() - t
         phase_ms["mineru_parse"] = int(parse_seconds * 1000)

@@ -33,6 +33,8 @@ async def run_mineru(
     server_url: str | None,
     formula_enable: bool,
     table_enable: bool,
+    effort: str = "medium",
+    image_analysis: bool = True,
 ) -> Path:
     if not MINERU_AVAILABLE:
         raise RuntimeError(f"mineru is not importable: {MINERU_VERSION}")
@@ -70,6 +72,8 @@ async def run_mineru(
         f_dump_orig_pdf=False,
         start_page_id=start_page,
         end_page_id=end_page,
+        effort=effort,
+        image_analysis=image_analysis,
     )
 
     # Only one basename is passed in, so at most one matching .md exists.

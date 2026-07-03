@@ -15,7 +15,7 @@
 # the dependency on RunPod's Cached Models setup, the Network Volume, and
 # any per-endpoint runtime-download tax. Trade-off: image grows by ~4 GB.
 
-ARG VLLM_VERSION=v0.11.2
+ARG VLLM_VERSION=v0.21.0
 FROM vllm/vllm-openai:${VLLM_VERSION}
 
 # HF_HUB_OFFLINE=1 + TRANSFORMERS_OFFLINE=1 force the HuggingFace libs to
