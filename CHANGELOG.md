@@ -1,3 +1,9 @@
+## [3.4.4](https://github.com/stckmn/mineru-runpod/compare/v3.4.3...v3.4.4) (2026-07-04)
+
+### Bug Fixes
+
+* **handler:** actually add spawn multiprocessing call ([89964ee](https://github.com/stckmn/mineru-runpod/commit/89964ee91ebc46faa2503c71e47f0ac25b8d5ca1))
+
 ## [3.4.3](https://github.com/stckmn/mineru-runpod/compare/v3.4.2...v3.4.3) (2026-07-04)
 
 ### Bug Fixes
