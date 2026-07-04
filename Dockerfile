@@ -7,25 +7,24 @@
 # At runtime: handler.py listens for RunPod jobs, downloads/decodes the input
 # PDF, calls MinerU's async parse, and returns the result as a base64 tarball.
 #
-# Model weights are NOT baked into this image. They are downloaded on the
-# first parse request to HF's default cache at /root/.cache/huggingface.
-# This keeps the image small enough to pass RunPod Hub's build/test window
-# (under 30 min build / 160 min total). Trade-off: the first request on a
-# cold worker is slow while ~4 GB of weights download. Set the execution
-# timeout high (>= 600 s) and idle timeout long enough to keep workers warm.
+# Model weights are BAKED into the image at build time (under HF's default
+# cache at /root/.cache/huggingface). This produces a ~22 GB image, so it is
+# not suitable for RunPod Hub's GitHub-repo test window. Build this image
+# locally (or via GitHub Actions) and deploy from GHCR/Docker Hub instead.
+# Trade-off: fast cold starts because no runtime download is needed.
 
 ARG VLLM_VERSION=v0.21.0
 FROM vllm/vllm-openai:${VLLM_VERSION}
 
-# Allow HuggingFace libs to download model weights at runtime. Models are
-# cached under /root/.cache/huggingface inside the worker; on a warm worker
-# they are reused across requests. On a cold start the first parse triggers
-# the download, so keep the execution timeout generous.
+# HF_HUB_OFFLINE=1 + TRANSFORMERS_OFFLINE=1 force the HuggingFace libs to
+# read from cache only. Since model weights are baked into the image, the
+# cache is always present. Offline mode prevents accidental downloads if
+# anything tries to call out at runtime.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    HF_HUB_OFFLINE=0 \
-    TRANSFORMERS_OFFLINE=0 \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
     HF_XET_HIGH_PERFORMANCE=1
 
 # vllm-openai inherits an entrypoint that launches the OpenAI server. Override
@@ -55,8 +54,29 @@ RUN pip install --no-cache-dir uv
 COPY requirements.txt /worker/requirements.txt
 RUN uv pip install --system --no-cache -r requirements.txt
 
-# NOTE: Model weights are intentionally downloaded at runtime, not baked
-# into the image. See the comment at the top of this file for the rationale.
+# Bake both MinerU model dependencies into the image at /root/.cache/huggingface
+# (HF's default cache path). Runs AFTER pip install so huggingface_hub is
+# available, and BEFORE the handler.py COPY so iterating on handler code
+# doesn't bust these layers.
+#
+# - MinerU2.5-Pro-2605-1.2B: the VLM backend's model
+# - PDF-Extract-Kit-1.0: the pipeline backend's OCR + layout + formula +
+#   table models
+#
+# Split into two RUN layers (one per model) so a partial failure or a
+# bump to a single model only re-downloads that model, not both.
+#
+# HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE are set to "0" inline for these
+# RUN steps only — the image-wide ENV directive above keeps them at "1"
+# so that runtime stays in offline mode.
+# hadolint ignore=DL3059
+RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 HF_XET_HIGH_PERFORMANCE=1 \
+    python3 -c "from huggingface_hub import snapshot_download; \
+    snapshot_download(repo_id='opendatalab/MinerU2.5-Pro-2605-1.2B')"
+# hadolint ignore=DL3059
+RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 HF_XET_HIGH_PERFORMANCE=1 \
+    python3 -c "from huggingface_hub import snapshot_download; \
+    snapshot_download(repo_id='opendatalab/PDF-Extract-Kit-1.0')"
 
 # Copy the worker code last so iterating on it doesn't bust the pip or
 # model-cache layers. handler.py is the entry point; the worker/ package

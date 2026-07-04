@@ -46,7 +46,7 @@ DEFAULTS = {
     "workers_max": 3,
     "idle_timeout": 10,
     "execution_timeout": 900,
-    "container_disk_gb": 60,
+    "container_disk_gb": 50,
     "flashboot": True,
     "scaler_type": "QUEUE_DELAY",
     "scaler_value": 4,
@@ -143,10 +143,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULTS["container_disk_gb"],
         help=(
             f"per-worker container disk (default: {DEFAULTS['container_disk_gb']} GB). "
-            f"Worker image is ~8 GB (vllm-openai base + Python deps); models "
-            f"(~4 GB) download at runtime into the HF cache. 60 GB gives room "
-            f"for the image, cache, tempfiles, and output tarball assembly. "
-            f"Bump higher only if you regularly parse books that produce multi-GB tarballs."
+            f"Worker image is ~22 GB (vllm-openai base + ~4 GB of baked MinerU "
+            f"models); 50 GB gives ~28 GB working room for tempfiles + output "
+            f"tarball assembly. Bump higher only if you regularly parse books "
+            f"that produce multi-GB tarballs."
         ),
     )
 

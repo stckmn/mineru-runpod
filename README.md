@@ -95,13 +95,11 @@ Responses wrap each file in a `results: [...]` list alongside a top-level `debug
 
 ## Cold starts
 
-This template keeps the Docker image small by **downloading model weights on the first request** instead of baking the full ~4 GB into the image. The trade-offs:
+Model weights are **baked into the Docker image** at build time (`opendatalab/MinerU2.5-Pro-2605-1.2B` + `opendatalab/PDF-Extract-Kit-1.0`). This makes the image ~22 GB, so it is built and pushed to a container registry (GHCR / Docker Hub) rather than going through RunPod Hub's GitHub-repo test window. The trade-off is fast cold starts: the worker does not need to download weights at request time.
 
-- **Build/test:** passes RunPod Hub's limits easily (small image, fast pull).
-- **Cold start:** the first request on a fresh worker downloads `opendatalab/MinerU2.5-Pro-2605-1.2B` and `opendatalab/PDF-Extract-Kit-1.0` from Hugging Face. This can take a few minutes, so set the endpoint **Execution timeout** to at least `600` seconds.
-- **Warm workers:** once weights are cached in the worker, subsequent parses are fast. Use a longer **Idle timeout** (e.g., `300`–`600` seconds) if you want to keep workers warm between bursts.
+For deployment, use **Deploy from image** in RunPod with your built image tag, e.g. `ghcr.io/stckmn/mineru-runpod:3.4.2`.
 
-If you need zero cold-start latency, fork the repo and [bake the models back into the Dockerfile](https://github.com/stckmn/mineru-runpod/blob/main/Dockerfile) — just note that the Hub test may time out on the resulting 20+ GB image.
+If you want a smaller image and are willing to accept runtime model downloads, remove the two `snapshot_download` steps in the Dockerfile.
 
 ## How does it compare?
 
