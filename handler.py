@@ -1,5 +1,12 @@
 """RunPod serverless entry point for the MinerU worker.
 
+vLLM requires the `spawn` multiprocessing start method when CUDA has been
+initialized in the parent process. RunPod's fitness checks initialize CUDA
+before our handler runs, so if we leave the default `fork` method in place
+vLLM tries to switch to spawn late and the worker process exits. Force spawn
+at module import time, before any other imports can touch CUDA or start
+threads.
+
 The pieces this orchestrates live in the worker/ package:
   worker.schema   — input validation
   worker.io       — fetch raw bytes from URL / b64 / volume + format detection

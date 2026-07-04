@@ -25,7 +25,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1 \
-    HF_XET_HIGH_PERFORMANCE=1
+    HF_XET_HIGH_PERFORMANCE=1 \
+    VLLM_WORKER_MULTIPROC_METHOD=spawn \
+    TOKENIZERS_PARALLELISM=false
 
 # vllm-openai inherits an entrypoint that launches the OpenAI server. Override
 # it so our handler can be the process.
