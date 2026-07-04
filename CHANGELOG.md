@@ -1,3 +1,9 @@
+## [3.4.6](https://github.com/stckmn/mineru-runpod/compare/v3.4.5...v3.4.6) (2026-07-04)
+
+### Refactoring
+
+* **handler:** verify spawn and remove unused bootstrap ([afd277d](https://github.com/stckmn/mineru-runpod/commit/afd277d2affa5e213b8b10f4cb16d9191ea783b7))
+
 ## [3.4.5](https://github.com/stckmn/mineru-runpod/compare/v3.4.4...v3.4.5) (2026-07-04)
 
 ### Bug Fixes
