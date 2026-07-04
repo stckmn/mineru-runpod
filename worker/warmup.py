@@ -26,10 +26,9 @@ subprocess is still running. Symptom: `EngineDeadError` ~75ms into
 the first real request.
 
 Production callers MUST use ``warmup_async()`` from inside the same
-asyncio loop that will later serve requests (see
-``handler._bootstrap_main()`` for the composition pattern). The
-synchronous ``warmup()`` wrapper exists only for tests / local debug
-where a fresh loop per call is fine because tests mock the engine.
+asyncio loop that will later serve requests. The synchronous
+``warmup()`` wrapper exists only for tests / local debug where a
+fresh loop per call is fine because tests mock the engine.
 
 Failure is non-fatal. A worker that can't warm up still serves
 requests (just slowly on the first one, falling back to lazy load).

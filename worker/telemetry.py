@@ -19,11 +19,10 @@ entirely. The runpod SDK silences Python's root logger during
 re-create the disappearing-logs problem the worker.logging module
 already solved.
 
-Init order matters: :func:`init_telemetry` MUST be called from
-``handler._bootstrap_main()`` BEFORE ``warmup_async()`` so warmup
-spans are captured. It must NOT spin up its own asyncio loop or
-threads that own an engine handle — the metric reader's background
-thread is safe (does not touch vLLM).
+Init order matters: :func:`init_telemetry` should be called before
+any warmup so warmup spans are captured. It must NOT spin up its own
+asyncio loop or threads that own an engine handle — the metric
+reader's background thread is safe (does not touch vLLM).
 
 Worker-state gauges (jobs/pages since boot) are NOT pulled by
 reaching into ``handler``. Instead, ``handler`` calls
@@ -117,10 +116,11 @@ def register_worker_gauges(
 ) -> None:
     """Tell the telemetry module how to read worker-state counters.
 
-    Called from ``handler._bootstrap_main()`` after ``init_telemetry()``.
-    Without this, the ``mineru.worker.jobs_since_boot`` and
-    ``mineru.worker.pages_since_boot`` gauges report 0. Safe to call
-    even when telemetry is disabled — the getters are simply not used.
+    Called after ``init_telemetry()`` once the entry point knows the
+    worker-state getters. Without this, the
+    ``mineru.worker.jobs_since_boot`` and ``mineru.worker.pages_since_boot``
+    gauges report 0. Safe to call even when telemetry is disabled — the
+    getters are simply not used.
     """
     global _jobs_getter, _pages_getter
     _jobs_getter = jobs_since_boot

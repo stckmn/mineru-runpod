@@ -24,10 +24,18 @@ from __future__ import annotations
 
 import multiprocessing as mp
 
+# vLLM requires the spawn multiprocessing start method when CUDA has already
+# been initialized in the parent process. Force it before any library imports
+# can touch CUDA under the default fork method. If something else already set
+# a different method, fail fast rather than letting vLLM crash later.
 try:
     mp.set_start_method("spawn", force=True)
 except RuntimeError:  # pragma: no cover — already set by runtime or tests
-    pass
+    if mp.get_start_method(allow_none=False) != "spawn":
+        current = mp.get_start_method()
+        raise RuntimeError(
+            f"multiprocessing start method must be 'spawn' for vLLM, got {current!r}"
+        )
 
 import os
 import signal
@@ -485,107 +493,6 @@ _run_mineru = _parse.run_mineru
 _collect_gpu_info = _debug.collect_gpu_info
 _find_model_dir = _debug.find_model_dir
 _probe_filesystem = _debug.probe_filesystem
-
-
-def _bootstrap_main() -> None:
-    """Production worker bootstrap.
-
-    Replicates ``runpod.serverless.worker.run_worker()`` but folds the
-    eager warmup into the same asyncio loop that JobScaler.run() will
-    use. The standard ``runpod.serverless.start()`` call chain creates
-    a fresh event loop *inside* JobScaler.start() — if our warmup runs
-    before that and creates its own loop via ``asyncio.run()``, vLLM's
-    AsyncLLMEngine handle is bound to the warmup loop. When the
-    JobScaler's loop starts and the first request tries to use the
-    engine, the parent's view of the engine subprocess is dead
-    (EngineDeadError ~75ms in). Composing both phases under one
-    ``asyncio.run()`` keeps the engine handle alive across the
-    warmup → serve transition.
-
-    NOTE: This reaches into ``runpod.serverless.modules.rp_scale`` and
-    ``rp_ping`` — undocumented internals of the runpod-python SDK.
-    pyproject pins ``runpod>=1.7`` (worker SDK version 1.9.x at time
-    of writing). A test in tests/test_runpod_internals.py asserts the
-    internals we depend on still exist and have the expected shape; if
-    the SDK refactors, that test fails fast instead of breaking
-    production silently.
-    """
-    import asyncio  # noqa: PLC0415
-    from runpod.serverless.modules import rp_ping, rp_scale  # noqa: PLC0415
-    from runpod.serverless.modules.rp_fitness import run_fitness_checks  # noqa: PLC0415
-    from worker import warmup as _warmup  # noqa: PLC0415
-
-    config: dict[str, Any] = {
-        "handler": handler,
-        "concurrency_modifier": _concurrency_modifier,
-        # JobScaler doesn't read rp_args directly, but some downstream
-        # paths in the SDK may. Empty dict is safe; the SDK's defaults
-        # apply for anything it does access.
-        "rp_args": {},
-    }
-
-    async def _bootstrap() -> None:
-        # 0. Initialize optional OpenTelemetry export BEFORE warmup so
-        # the warmup span (and any spans/log mirrors during fitness
-        # checks) are captured. No-op when OTEL_EXPORTER_OTLP_ENDPOINT
-        # is unset. Init is sync and runs once per process; the
-        # batch processors below it are background threads, not async
-        # tasks, so they do not interact with vLLM's event loop.
-        _telemetry.init_telemetry()
-
-        # Hand worker-state getters to the telemetry module so its
-        # observable gauges don't have to import ``handler`` (avoids
-        # an import cycle and keeps the dependency arrow pointing
-        # from the entry-point module into telemetry, not the
-        # reverse). Safe to call when telemetry is disabled — the
-        # getters are simply unused.
-        _telemetry.register_worker_gauges(
-            jobs_since_boot=lambda: _jobs_processed,
-            pages_since_boot=lambda: _pages_processed_total,
-        )
-
-        # 1. Fitness checks (runpod-python runs these synchronously
-        # before serving; we run them async in the same loop).
-        await run_fitness_checks()
-
-        # 2. Eager warmup. Same loop as the serve loop below — see
-        # worker/warmup.py docstring for the asyncio invariant.
-        await _warmup.warmup_async()
-
-        # 3. Heartbeat is a background thread, not async. Start it
-        # after warmup so the control plane doesn't see us "alive"
-        # before we can actually serve.
-        rp_ping.Heartbeat().start_ping()
-
-        # 4. Install combined signal handlers: our breadcrumb + the
-        # scaler's graceful-drain logic. Both must run on SIGTERM /
-        # SIGINT; signal.signal() only allows one handler so we wrap.
-        scaler = rp_scale.JobScaler(config)
-
-        def _combined_shutdown(signum: int, frame: Any) -> None:
-            _on_sigterm(signum, frame)
-            try:
-                scaler.handle_shutdown(signum, frame)
-            except Exception as e:  # noqa: BLE001
-                _logging.warning("scaler.handle_shutdown raised", error=repr(e))
-
-        try:
-            signal.signal(signal.SIGTERM, _combined_shutdown)
-            signal.signal(signal.SIGINT, _combined_shutdown)
-        except (ValueError, OSError) as e:
-            _logging.warning("could not install runtime signal handlers", error=repr(e))
-
-        # 5. Serve requests on this same loop. JobScaler.run() blocks
-        # until shutdown is requested.
-        try:
-            await scaler.run()
-        finally:
-            # Best-effort flush of OTel buffers so the last batch of
-            # spans/logs/metrics escapes before the process exits.
-            # No-op when telemetry is disabled.
-            _telemetry.shutdown()
-
-    asyncio.run(_bootstrap())
 
 
 def _main() -> None:
