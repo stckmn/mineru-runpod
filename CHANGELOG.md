@@ -1,3 +1,13 @@
+## [3.4.3](https://github.com/stckmn/mineru-runpod/compare/v3.4.2...v3.4.3) (2026-07-04)
+
+### Bug Fixes
+
+* **handler:** force spawn multiprocessing before vLLM init ([5cb0aaf](https://github.com/stckmn/mineru-runpod/commit/5cb0aafb343fd444fabc0ca39374df1de93c2018))
+
+### Build / Deps
+
+* **docker:** bake MinerU models into image for GHCR deployment ([a02cc82](https://github.com/stckmn/mineru-runpod/commit/a02cc822be1c372cacd0b9884046ea169892317a))
+
 ## [1.7.0](https://github.com/sergeyshmakov/mineru-runpod/compare/v1.6.4...v1.7.0) (2026-06-08)
 
 ### Features
