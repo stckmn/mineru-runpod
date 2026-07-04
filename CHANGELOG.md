@@ -1,3 +1,9 @@
+## [3.4.5](https://github.com/stckmn/mineru-runpod/compare/v3.4.4...v3.4.5) (2026-07-04)
+
+### Bug Fixes
+
+* **handler:** guard runpod.serverless.start under if __main__ ([ff7b796](https://github.com/stckmn/mineru-runpod/commit/ff7b796fea457ba1bae1bcfebd4795f72288c0eb))
+
 ## [3.4.4](https://github.com/stckmn/mineru-runpod/compare/v3.4.3...v3.4.4) (2026-07-04)
 
 ### Bug Fixes
