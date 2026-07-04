@@ -22,6 +22,13 @@ for tests/back-compat — see the re-exports near the bottom of this file.
 
 from __future__ import annotations
 
+import multiprocessing as mp
+
+try:
+    mp.set_start_method("spawn", force=True)
+except RuntimeError:  # pragma: no cover — already set by runtime or tests
+    pass
+
 import os
 import signal
 import tempfile
