@@ -588,9 +588,13 @@ def _bootstrap_main() -> None:
     asyncio.run(_bootstrap())
 
 
-# Start the RunPod serverless worker. This call must live at module scope
-# so RunPod's GitHub repository indexer can detect the handler entry point.
-runpod.serverless.start({
-    "handler": handler,
-    "concurrency_modifier": _concurrency_modifier,
-})
+def _main() -> None:
+    """Entry point used when handler.py is executed as a script."""
+    runpod.serverless.start({
+        "handler": handler,
+        "concurrency_modifier": _concurrency_modifier,
+    })
+
+
+if __name__ == "__main__":
+    _main()
